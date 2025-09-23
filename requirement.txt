@@ -1,0 +1,3 @@
+
+clone redis repo and run to connect tcp server
+./src/redis-cli -p 3000 
