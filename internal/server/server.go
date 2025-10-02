@@ -66,7 +66,7 @@ func RunIoMultiplexingServer() {
 	}); err != nil {
 		log.Fatal(err)
 	}
-
+	// create a slice of empty events to hold future ready events from multiplexer.Wait()
 	var events = make([]io_multiplexing.Event, config.MaxConnection)
 	var lastActiveExpireExecTime = time.Now()
 	for {
@@ -76,7 +76,7 @@ func RunIoMultiplexingServer() {
 		}
 		// wait for file descriptors in the monitoring list to be ready for I/O
 		// it is a blocking call.
-		events, err = ioMultiplexer.Wait()
+		events, err = ioMultiplexer.Wait() // returns ready events
 		if err != nil {
 			continue
 		}
@@ -85,13 +85,14 @@ func RunIoMultiplexingServer() {
 			if events[i].Fd == serverFd {
 				log.Printf("new client is trying to connect")
 				// set up new connection
-				connFd, _, err := syscall.Accept(serverFd)
+				connFd, _, err := syscall.Accept(serverFd) // new connection fd 
 				if err != nil {
 					log.Println("err", err)
 					continue
 				}
 				log.Printf("set up a new connection")
 				// ask epoll to monitor this connection
+				// add new connection fd to the monitoring list
 				if err = ioMultiplexer.Monitor(io_multiplexing.Event{
 					Fd: connFd,
 					Op: io_multiplexing.OpRead,

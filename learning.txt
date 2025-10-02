@@ -1,0 +1,107 @@
+Yes, this is a single-threaded Redis server implementation. The cmd/main.go file has only one main goroutine (the main thread), which calls
+    server.RunIoMultiplexingServer(). That function contains an event loop that uses I/O multiplexing (via epoll on Linux or kqueue on macOS) to handle multiple
+    client connections concurrently without spawning additional threads or goroutines. The multiplexing allows the single thread to wait for events (e.g., incoming
+    data) on many file descriptors at once, process them sequentially in the loop, and respond—all without blocking on individual I/O operations. This is a common
+    pattern in high-performance servers like Redis, where single-threading simplifies concurrency (no race conditions on shared data) and leverages the OS kernel's
+    multiplexing for scalability.
+
+    The "ThreadPool" directory contains a separate, alternative implementation (ThreadPool/main.go) that uses a thread pool (multiple goroutines) to handle
+    connections. However, it's not integrated into the main server—it's more of a demo or comparison. The core Redis logic (e.g., data storage, command execution)
+    isn't implemented there; it just echoes commands back.
+
+    Below, I'll go through each file in the codebase, explaining its purpose and how it contributes to building this Redis server. I've grouped them logically and
+    highlighted key functions/roles. The server mimics Redis basics: in-memory key-value storage with expiration, RESP protocol for communication, and commands like
+    PING, SET, GET, and TTL.
+
+    ### Entry Point and Server Core
+
+        * **`cmd/main.go`**: Simple entry point. It imports the server package and calls `server.RunIoMultiplexingServer()` to start the server. No logic here—just
+    bootstraps the app.
+        * **`internal/server/server.go`**: The heart of the server. It sets up a TCP listener, extracts its file descriptor, and creates an I/O multiplexer
+    (epoll/kqueue). The main event loop:
+            * Periodically cleans expired keys (via `core.ActiveDeleteExpiredKeys()`).
+
+            * Waits for events (blocking call to `ioMultiplexer.Wait()`).
+
+            * For new connections (listener FD ready), accepts them and adds to multiplexing.
+
+            * For client FDs, reads commands (via `readCommand()`), executes them (via `core.ExecuteAndResponse()`), and responds.
+
+            * Uses low-level syscalls (e.g., `syscall.Read/Write`) for efficiency, avoiding Go's buffered I/O layers.
+
+            * Single-threaded: One loop handles everything.
+
+    ### Core Logic (Command Execution, Storage, Expiration)
+
+        * **`internal/core/storage.go`**: Manages global in-memory storage. Initializes a single `dictStore` (a dictionary) that's used across all operations. No
+    persistence—data lives in memory only.
+        * **`internal/core/expire.go`**: Handles key expiration. `ActiveDeleteExpiredKeys()` runs periodically in the server loop, sampling expired keys and deleting
+     them if the expiration rate is high enough (based on thresholds in `constant`). This is Redis's "active expire" strategy to avoid scanning everything
+    constantly.
+        * **`internal/core/command.go`**: Defines the `Command` struct, which holds the parsed command name (e.g., "SET") and arguments (e.g., ["key", "value"]).
+        * **`internal/core/executor.go`**: Executes Redis commands and generates responses.
+            * `ExecuteAndResponse()`: Dispatches based on command type, calls the appropriate handler, and writes the RESP-encoded response back to the client FD.
+
+            * Implementations for basic commands:
+
+                * `cmdPING()`: Returns "PONG" or echoes an argument.
+
+
+                * `cmdSET()`: Stores a key-value pair in `dictStore`, optionally with TTL (in milliseconds).
+
+
+                * `cmdGET()`: Retrieves a value from `dictStore`, checking for expiration.
+
+
+                * `cmdTTL()`: Returns remaining TTL for a key or special values if not set/expired.
+
+            * Responses are encoded in RESP format and written directly via syscall.
+        * **`internal/core/resp.go`**: Handles the Redis Serialization Protocol (RESP) for parsing requests and encoding responses.
+            * Decoding: Functions like `DecodeOne()` parse incoming RESP data (e.g., `*2\r\n$3\r\nSET\r\n$3\r\nkey\r\n`) into Go types (e.g., `[]interface{}` for
+    arrays).
+
+            * Encoding: `Encode()` converts Go data (strings, arrays, etc.) back to RESP (e.g., `$5\r\nhello\r\n` for a bulk string).
+
+            * `ParseCmd()`: Converts decoded data into a `Command` struct.
+
+            * Supports simple strings, integers, bulk strings, arrays, errors, and nil.
+
+    ### Data Structures
+
+        * **`internal/data_structure/dict.go`**: Implements a hash map (`Dict`) for key-value storage with expiration support.
+            * `dictStore`: Map of keys to `Obj` (wrapping values).
+
+            * `expiredDictStore`: Map of keys to expiration timestamps (Unix milliseconds).
+
+            * Methods: `Get()`, `Set()`, `Del()`, `NewObj()` (with optional TTL), `HasExpired()`, etc.
+
+            * Expiration is checked lazily (on access) and actively (via sampling).
+
+    ### Configuration and Constants
+
+        * **`internal/config/config.go`**: Static config: Protocol ("tcp"), port (":3000"), max connections (20000).
+        * **`internal/constant/constant.go`**: Predefined RESP responses (e.g., `RespOk` for "+OK\r\n") and expiration settings (e.g., sample size, threshold for
+    active expire).
+
+    ### I/O Multiplexing (Cross-Platform Event Handling)
+
+        * **`internal/core/io_multiplexing/io_multiplexing.go`**: Defines the `IOMultiplexer` interface and `Event` struct. Abstracts multiplexing so the server code
+     is platform-agnostic.
+        * **`internal/core/io_multiplexing/epoll_linux.go`** (Linux-specific): Implements epoll.
+            * `CreateIOMultiplexer()`: Creates an epoll FD.
+
+            * `Monitor()`: Adds FDs to epoll's interest list.
+
+            * `Wait()`: Blocks until events are ready, returns them.
+        * **`internal/core/io_multiplexing/type_linux.go`**: Conversion helpers between generic `Event` and native `syscall.EpollEvent`.
+        * **`internal/core/io_multiplexing/kqueue_macos.go`** (macOS-specific): Similar to epoll, but uses kqueue.
+        * **`internal/core/io_multiplexing/type_macos.go`**: Conversion helpers for kqueue events.
+
+    ### Alternative Implementation
+
+        * **`ThreadPool/main.go`**: A separate, incomplete demo using a goroutine pool to handle connections (one job per connection). It reads/echoes data but lacks
+     Redis commands or storage. Contrasts with the multiplexing approach—multi-threaded but simpler I/O (blocking reads).
+
+    This setup builds a minimal, performant Redis clone: single-threaded event loop for concurrency, in-memory dict for storage, RESP for protocol, and basic
+    commands. It scales via multiplexing (thousands of connections) but lacks advanced features like persistence, clustering, or more commands. If you have questions
+     on specific parts or want to extend it, let me know!
