@@ -44,6 +44,7 @@ func cmdSET(args []string) []byte {
 	return constant.RespOk
 }
 
+
 func cmdGET(args []string) []byte {
 	if len(args) != 1 {
 		return Encode(errors.New("(error) ERR wrong number of arguments for 'GET' command"), false)
@@ -100,6 +101,40 @@ func cmdDEL(args []string) []byte{
 	return 	Encode(deletedCount,false)
 }
 
+func cmdEXPIRE(args []string) []byte{
+	if len(args) != 2 {
+		return Encode(errors.New("(error) ERR wrong number of arguments for 'EXPIRE' command"),false)
+	}
+
+	key := args[0]
+	obj := dictStore.Get(key)
+
+	if obj == nil {
+		return constant.TtlKeyNotExist
+	}
+	ttlSec, err := strconv.ParseInt(args[1], 10, 64)
+	if err != nil{
+		return Encode(errors.New("(error) ERR value is not an integer or out of range"), false)
+	}
+	ttlMs := ttlSec * 1000
+	dictStore.SetExpiry(key,ttlMs)
+	return constant.RespOk
+}
+
+func cmdEXISTS(args []string) []byte{
+	if len(args) < 1 {
+		return Encode(errors.New("(error) ERR wrong number of arguments for 'EXISTS' command"),false)
+	}
+	var existsCount int64 = 0
+	for _, arg := range args{
+		if dictStore.Get(arg) != nil{
+			existsCount++
+		}
+	}
+	return Encode(existsCount,false)
+}
+
+
 // ExecuteAndResponse given a Command, executes it and responses
 func ExecuteAndResponse(cmd *Command, connFd int) error {
 	var res []byte
@@ -115,6 +150,10 @@ func ExecuteAndResponse(cmd *Command, connFd int) error {
 		res = cmdTTL(cmd.Args)
 	case "DEL":
 		res  = cmdDEL(cmd.Args)
+	case "EXPIRE":
+		res = cmdEXPIRE(cmd.Args)
+	case "EXISTS":
+		res = cmdEXISTS(cmd.Args)
 	default:
 		res = []byte(fmt.Sprintf("-CMD NOT FOUND\r\n"))
 	}
