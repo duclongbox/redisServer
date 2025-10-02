@@ -85,6 +85,21 @@ func cmdTTL(args []string) []byte {
 	return Encode(int64(remainMs/1000), false)
 }
 
+func cmdDEL(args []string) []byte{
+	if len(args) < 1{
+		return Encode(errors.New("(error) ERR wrong number of arguments for 'DEL' command"),false)
+	}
+	var deletedCount int64 = 0
+
+	for _, arg := range args{
+		if dictStore.Del(arg){
+			deletedCount++
+		}
+	}
+
+	return 	Encode(deletedCount,false)
+}
+
 // ExecuteAndResponse given a Command, executes it and responses
 func ExecuteAndResponse(cmd *Command, connFd int) error {
 	var res []byte
@@ -98,6 +113,8 @@ func ExecuteAndResponse(cmd *Command, connFd int) error {
 		res = cmdGET(cmd.Args)
 	case "TTL":
 		res = cmdTTL(cmd.Args)
+	case "DEL":
+		res  = cmdDEL(cmd.Args)
 	default:
 		res = []byte(fmt.Sprintf("-CMD NOT FOUND\r\n"))
 	}
