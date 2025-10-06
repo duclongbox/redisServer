@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 )
+// convert between raw data and RESP format data
 
 const CRLF string = "\r\n"
 

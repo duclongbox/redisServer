@@ -1,9 +1,9 @@
 package core
 
 import (
-	"redisServer/internal/constant"
 	"errors"
 	"fmt"
+	"redisServer/internal/constant"
 	"strconv"
 	"syscall"
 	"time"
@@ -162,6 +162,14 @@ func ExecuteAndResponse(cmd *Command, connFd int) error {
 		res = cmdSMEMBERS(cmd.Args)
 	case "SISMEMBER":
 		res = cmdSISMEMBER(cmd.Args)
+	case "CMS.INITBYDIM":
+		res = cmdCMSINITBYDIM(cmd.Args)
+	case "CMS.INITBYPROB":
+		res = cmdCMSINITBYPROB(cmd.Args)
+	case "CMS.INCRBY":
+		res = cmdCMSINCRBY(cmd.Args)
+	case "CMS.QUERY":
+		res = cmdCMSQUERY(cmd.Args)
 	default:
 		res = []byte(fmt.Sprintf("-CMD NOT FOUND\r\n"))
 	}
