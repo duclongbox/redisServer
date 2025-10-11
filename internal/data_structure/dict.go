@@ -1,7 +1,10 @@
 package data_structure
 
-import "time"
-
+import (
+	"log"
+	// "redisServer/internal/config"
+	"time"
+)
 type Obj struct {
 	Value interface{}
 }
@@ -17,6 +20,10 @@ func CreateDict() *Dict {
 		expiredDictStore: make(map[string]uint64),
 	}
 	return &res
+}
+
+func (d *Dict) GetDictStore() map[string]*Obj {
+	return d.dictStore
 }
 
 func (d *Dict) GetExpireDictStore() map[string]uint64 {
@@ -62,14 +69,27 @@ func (d *Dict) Get(k string) *Obj {
 }
 
 func (d *Dict) Set(k string, obj *Obj) {
+	v := d.dictStore[k]
+	if v == nil{
+		HashKeySpaceStat.Key++
+	}
 	d.dictStore[k] = obj
+
+
 }
 
 func (d *Dict) Del(k string) bool {
+	log.Printf("deleting key %s", k)
 	if _, exist := d.dictStore[k]; exist {
 		delete(d.dictStore, k)
 		delete(d.expiredDictStore, k)
+		HashKeySpaceStat.Key--
 		return true
 	}
 	return false
 }
+
+// func (d *Dict) Evict(){
+// 	switch config.EvictionPolicy{
+	
+// }

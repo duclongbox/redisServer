@@ -1,9 +1,11 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"redisServer/internal/constant"
+	"redisServer/internal/data_structure"
 	"strconv"
 	"syscall"
 	"time"
@@ -134,7 +136,13 @@ func cmdEXISTS(args []string) []byte{
 	return Encode(existsCount,false)
 }
 
-
+func cmdINFO(args []string) []byte {
+	var info []byte
+	buf :=  bytes.NewBuffer(info)
+	buf.WriteString("# Keyspace\r\n")
+	buf.WriteString(fmt.Sprintf("db0:keys=%d,expires=0,avg_ttl=0\r\n", data_structure.HashKeySpaceStat.Key))
+	return Encode(buf.String(), false)
+}
 // ExecuteAndResponse given a Command, executes it and responses
 func ExecuteAndResponse(cmd *Command, connFd int) error {
 	var res []byte
@@ -170,6 +178,8 @@ func ExecuteAndResponse(cmd *Command, connFd int) error {
 		res = cmdCMSINCRBY(cmd.Args)
 	case "CMS.QUERY":
 		res = cmdCMSQUERY(cmd.Args)
+	case "INFO":
+		res = cmdINFO(cmd.Args)
 	default:
 		res = []byte(fmt.Sprintf("-CMD NOT FOUND\r\n"))
 	}
