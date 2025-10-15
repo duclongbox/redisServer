@@ -77,6 +77,9 @@ func (d *Dict) Get(k string) *Obj {
 }
 
 func (d *Dict) Set(k string, obj *Obj) {
+	if len(d.dictStore) == config.MaxKeyNumber{
+		d.Evict()
+	}
 	v := d.dictStore[k]
 	if v == nil{
 		HashKeySpaceStat.Key++

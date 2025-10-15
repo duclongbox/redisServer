@@ -105,3 +105,8 @@ Yes, this is a single-threaded Redis server implementation. The cmd/main.go file
     This setup builds a minimal, performant Redis clone: single-threaded event loop for concurrency, in-memory dict for storage, RESP for protocol, and basic
     commands. It scales via multiplexing (thousands of connections) but lacks advanced features like persistence, clustering, or more commands. If you have questions
      on specific parts or want to extend it, let me know!
+
+
+### LRU Eviction:
+instead using  hashmap and doubly linkedlist for O1 time complexity but memeory intensive, we can use Approxiate LRU:
+Instead of tracking access order for all keys. it randomly samples a small number of keys (EpooLruSampleSize 5) 
