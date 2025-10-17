@@ -12,7 +12,7 @@ Redis-Server is a high-performance Redis-compatible server implemented in Go. It
 ## Non-functional Requirements
 - High throughput (e.g., 162,127 requests per second in benchmarks) and low latency.
 - Scalable to handle up to 20,000 concurrent connections.
-- Efficient memory usage with single-threaded design to avoid concurrency overhead.
+- Efficient memory usage with single-threaded design to avoid concurrency overhead (can update to multi-thread).
 
 ## Functional Complexity
 - Core operations like GET and SET are O(1) time complexity using hash maps.
