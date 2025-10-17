@@ -1,4 +1,4 @@
-Yes, this is a single-threaded Redis server implementation. The cmd/main.go file has only one main goroutine (the main thread), which calls
+This is a single-threaded Redis server implementation. The cmd/main.go file has only one main goroutine (the main thread), which calls
     server.RunIoMultiplexingServer(). That function contains an event loop that uses I/O multiplexing (via epoll on Linux or kqueue on macOS) to handle multiple
     client connections concurrently without spawning additional threads or goroutines. The multiplexing allows the single thread to wait for events (e.g., incoming
     data) on many file descriptors at once, process them sequentially in the loop, and respond—all without blocking on individual I/O operations. This is a common
